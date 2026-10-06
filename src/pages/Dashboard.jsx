@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Plus, MapPin, Calendar, Crown, LogIn, LogOut, Search } from 'lucide-react';
+import { Plus, MapPin, Calendar, Crown, LogIn, LogOut, Search, UserPlus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../store/useAuthStore';
 import { useTripStore } from '../store/useTripStore';
@@ -37,6 +37,7 @@ export default function Dashboard() {
   const { trips, fetchMyTrips, loading } = useTripStore();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
+  const [joinCode, setJoinCode] = useState('');
 
   useEffect(() => {
     if (!user) return;
@@ -53,6 +54,18 @@ export default function Dashboard() {
     }
 
     navigate('/create-trip');
+  };
+
+  const handleJoinTrip = (e) => {
+    e.preventDefault();
+    const code = joinCode.trim().toUpperCase();
+
+    if (!code) {
+      toast.error('Enter a trip code to join');
+      return;
+    }
+
+    navigate(`/join/${code}`);
   };
 
   const filtered = user
@@ -129,6 +142,23 @@ export default function Dashboard() {
               className="w-full bg-white/95 rounded-xl pl-10 pr-4 py-3 text-sm text-teal-900 placeholder:text-teal-400 focus:outline-none focus:ring-2 focus:ring-saffron-400"
             />
           </div>
+        )}
+
+        {user && (
+          <form onSubmit={handleJoinTrip} className="mt-3 flex gap-2">
+            <div className="relative flex-1">
+              <UserPlus className="absolute left-3.5 top-3.5 w-4 h-4 text-teal-300" />
+              <input
+                value={joinCode}
+                onChange={(e) => setJoinCode(e.target.value)}
+                placeholder="Enter trip code"
+                className="w-full bg-white/95 rounded-xl pl-10 pr-4 py-3 text-sm font-mono uppercase text-teal-900 placeholder:font-sans placeholder:normal-case placeholder:text-teal-400 focus:outline-none focus:ring-2 focus:ring-saffron-400"
+              />
+            </div>
+            <button type="submit" className="btn-accent px-4 py-3 rounded-xl">
+              Join
+            </button>
+          </form>
         )}
 
         {!user && (
@@ -255,10 +285,26 @@ export default function Dashboard() {
 
       {(!user || (!loading && trips.length === 0)) && (
         <div className="fixed bottom-0 left-0 right-0 bg-cream-50 border-t border-teal-100 p-4 pb-6">
-          <button onClick={handleCreateTrip} className="btn-primary w-full flex items-center justify-center gap-2">
-            <Plus className="w-5 h-5" />
-            Create New Trip
-          </button>
+          {user ? (
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={handleCreateTrip} className="btn-primary flex items-center justify-center gap-2">
+                <Plus className="w-5 h-5" />
+                Create
+              </button>
+              <button
+                onClick={() => toast('Enter the trip code above, then tap Join.')}
+                className="btn-outline bg-white flex items-center justify-center gap-2"
+              >
+                <UserPlus className="w-5 h-5" />
+                Join
+              </button>
+            </div>
+          ) : (
+            <button onClick={handleCreateTrip} className="btn-primary w-full flex items-center justify-center gap-2">
+              <Plus className="w-5 h-5" />
+              Create New Trip
+            </button>
+          )}
         </div>
       )}
     </div>
