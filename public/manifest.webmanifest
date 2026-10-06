@@ -1,0 +1,14 @@
+{
+  "name": "HisabKitab - Trip Expense Manager",
+  "short_name": "HisabKitab",
+  "description": "Smart Group Trip Expense Manager for splitting bills with friends",
+  "theme_color": "#0f766e",
+  "background_color": "#fffdf9",
+  "display": "standalone",
+  "orientation": "portrait",
+  "start_url": "/",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
