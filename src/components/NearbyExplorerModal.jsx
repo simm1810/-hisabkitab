@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { X, Compass, Utensils, Landmark, Fuel, Building2, MapPin, Loader2 } from 'lucide-react';
 
 const MODES = [
-  { value: 'tourist_attraction', label: 'Attractions', icon: Compass, tags: ['tourism=attraction','tourism=viewpoint','tourism=museum','tourism=temple','historic','natural=beach'] },
-  { value: 'restaurant', label: 'Food', icon: Utensils, tags: ['amenity=restaurant','amenity=cafe','amenity=fast_food','amenity=bar','amenity=pub','shop=bakery'] },
-  { value: 'historic', label: 'Historic', icon: Landmark, tags: ['historic=fort','historic=memorial','historic=monument','historic=ruins','historic=church'] },
-  { value: 'fuel', label: 'Fuel', icon: Fuel, tags: ['amenity=fuel','amenity=charging_station'] },
-  { value: 'hotel', label: 'Stay', icon: Building2, tags: ['tourism=hotel','tourism=guest_house','tourism=resort','tourism=hostel','tourism=apartment'] },
+  { value: 'tourist_attraction', label: 'Attractions', icon: Compass, tags: ['tourism=attraction','tourism=viewpoint','tourism=museum','tourism=temple'] },
+  { value: 'restaurant', label: 'Food', icon: Utensils, tags: ['amenity=restaurant','amenity=cafe','amenity=fast_food','amenity=bar'] },
+  { value: 'historic', label: 'Historic', icon: Landmark, tags: ['historic=fort','historic=memorial','historic=monument','historic=ruins'] },
+  { value: 'fuel', label: 'Fuel', icon: Fuel, tags: ['amenity=fuel'] },
+  { value: 'hotel', label: 'Stay', icon: Building2, tags: ['tourism=hotel','tourism=guest_house','tourism=resort','tourism=hostel'] },
 ];
 
 export default function NearbyExplorerModal({ isOpen, onClose, latLon, destination, onAddToTrip }) {
@@ -31,7 +31,7 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
       }
       navigator.geolocation.getCurrentPosition(
         (pos) => setLatLonState({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-        () => setLatLonState({ lat: 15.4909, lon: 73.8278 })
+        () => setLatLonState({ lat: 15.2993, lon: 74.1240 })
       );
     }
     resolveLocation();
@@ -43,50 +43,38 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
     const m = newMode || mode;
     setMode(m);
     if (!activeLatLon) return;
-
     setLoading(true);
     setResults([]);
-
     try {
       const selectedMode = MODES.find(x => x.value === m) || MODES[0];
       const lat = activeLatLon.lat;
       const lon = activeLatLon.lon || activeLatLon.lng;
-
-      // Regex hataya, simple OR queries banayi
-      // Line ~42 - 3000 ko 15000 kar de
       const clauses = selectedMode.tags.map(t => `nwr(around:15000,${lat},${lon})[${t}];`).join('');
       const query = `[out:json][timeout:25];(${clauses});out center 20;`;
-
       console.log("Fetching:", query);
-
       const url = `/api/overpass?data=${encodeURIComponent(query)}`;
       const res = await fetch(url);
       const text = await res.text();
       let data;
       try { data = JSON.parse(text); } catch { data = { elements: [] }; }
-
       console.log("Overpass result:", data);
-
       const formatted = (data.elements || []).map(el => ({
         place_id: el.id,
         lat: el.lat || el.center?.lat || lat,
         lon: el.lon || el.center?.lon || lon,
-        name: el.tags?.name || "Unnamed place",
+        name: el.tags?.name || el.tags?.tourism || el.tags?.amenity || el.tags?.historic || "Nearby place",
         vicinity: el.tags?.tourism || el.tags?.amenity || el.tags?.historic || "nearby",
         tags: el.tags
-      }))..filter(r => true)
-
+      }));
       setResults(formatted);
     } catch (err) {
-      console.error("Overpass error:", err);
+      console.error(err);
       setResults([]);
     }
     setLoading(false);
   }
 
-  useEffect(() => {
-    if (isOpen && activeLatLon) fetchSuggestions(mode);
-  }, [isOpen, activeLatLon]);
+  useEffect(() => { if (isOpen && activeLatLon) fetchSuggestions(mode); }, [isOpen, activeLatLon]);
 
   if (!isOpen) return null;
 
