@@ -18,10 +18,7 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
   useEffect(() => {
     async function resolveLocation() {
       if (!isOpen) return;
-      // FIX 1: Agar latLon prop hai toh wahi use karo
       if (latLon) { setLatLonState(latLon); return; }
-
-      // FIX 2: Agar destination hai (Kashmir) toh pehle usko geocode karo, current location ko ignore karo
       if (destination) {
         try {
           const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(destination)}`);
@@ -32,7 +29,6 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
           }
         } catch {}
       }
-      // Last option: current location
       navigator.geolocation.getCurrentPosition(
         (pos) => setLatLonState({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
         () => setLatLonState({ lat: 15.4909, lng: 73.8278 })
@@ -54,11 +50,9 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
       const lon = activeLatLon.lng || activeLatLon.lon;
       const q = `[out:json][timeout:25];(node[${selected.query}](around:10000,${lat},${lon}););out 20;`;
 
-      // FIX 3: CORS proxy - POST hata diya
+      // DIRECT CALL - no proxy
       const overpassUrl = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`;
-      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(overpassUrl)}`;
-
-      const res = await fetch(proxyUrl);
+      const res = await fetch(overpassUrl);
       const data = await res.json();
 
       const mapped = (data.elements || []).map(el => ({
@@ -66,7 +60,7 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
         vicinity: el.tags?.tourism || el.tags?.amenity || el.tags?.historic || '',
         place_id: el.id.toString(),
         geometry: { location: { lat: el.lat, lng: el.lon } }
-      })).filter(r => r.name!== 'Unnamed place'); // unnamed hata do
+      })).filter(r => r.name!== 'Unnamed place');
       setResults(mapped);
     } catch (e) {
       console.error(e);
