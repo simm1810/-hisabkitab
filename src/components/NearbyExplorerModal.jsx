@@ -51,7 +51,7 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
       const lon = activeLatLon.lon || activeLatLon.lng;
       const query = `[out:json][timeout:25];nwr(around:50000,${lat},${lon})[${selectedMode.query}];out center 20;`;
       console.log("Fetching:", query);
-      const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
+      const url = `/api/overpass?data=${encodeURIComponent(query)}`;
       const res = await fetch(url);
       const text = await res.text();
       let data;
