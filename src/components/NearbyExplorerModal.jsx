@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { X, Compass, Utensils, Landmark, Fuel, Building2, MapPin, Loader2 } from 'lucide-react';
 
 const MODES = [
-  { value: 'tourist_attraction', label: 'Attractions', icon: Compass, query: 'tourism~"attraction|viewpoint|museum|fort|temple"' },
-  { value: 'restaurant', label: 'Food', icon: Utensils, query: 'amenity~"restaurant|cafe|food_court"' },
+  { value: 'tourist_attraction', label: 'Attractions', icon: Compass, query: 'tourism~"attraction|viewpoint|museum|fort|temple|shrine"' },
+  { value: 'restaurant', label: 'Food', icon: Utensils, query: 'amenity~"restaurant|cafe|food_court|fast_food"' },
   { value: 'historic', label: 'Historic', icon: Landmark, query: 'historic~"."' },
   { value: 'fuel', label: 'Fuel', icon: Fuel, query: 'amenity~"fuel"' },
-  { value: 'hotel', label: 'Stay', icon: Building2, query: 'tourism~"hotel|guest_house|resort"' },
+  { value: 'hotel', label: 'Stay', icon: Building2, query: 'tourism~"hotel|guest_house|resort|hostel"' },
 ];
 
 export default function NearbyExplorerModal({ isOpen, onClose, latLon, destination, onAddToTrip }) {
@@ -18,25 +18,24 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
   useEffect(() => {
     async function resolveLocation() {
       if (!isOpen) return;
-      if (latLon) {
-        setLatLonState(latLon);
-        return;
+      // FIX 1: Agar latLon prop hai toh wahi use karo
+      if (latLon) { setLatLonState(latLon); return; }
+
+      // FIX 2: Agar destination hai (Kashmir) toh pehle usko geocode karo, current location ko ignore karo
+      if (destination) {
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(destination)}`);
+          const data = await res.json();
+          if (data[0]) {
+            setLatLonState({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
+            return;
+          }
+        } catch {}
       }
+      // Last option: current location
       navigator.geolocation.getCurrentPosition(
         (pos) => setLatLonState({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        async () => {
-          if (destination) {
-            try {
-              const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(destination)}`);
-              const data = await res.json();
-              if (data[0]) {
-                setLatLonState({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
-                return;
-              }
-            } catch {}
-          }
-          setLatLonState({ lat: 15.4909, lng: 73.8278 });
-        }
+        () => setLatLonState({ lat: 15.4909, lng: 73.8278 })
       );
     }
     resolveLocation();
@@ -53,37 +52,21 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
       const selected = MODES.find(x => x.value === selectedMode);
       const lat = activeLatLon.lat;
       const lon = activeLatLon.lng || activeLatLon.lon;
-      const q = `[out:json][timeout:25];(node[${selected.query}](around:5000,${lat},${lon}););out 20;`;
+      const q = `[out:json][timeout:25];(node[${selected.query}](around:10000,${lat},${lon}););out 20;`;
 
-      const endpoints = [
-        'https://overpass-api.de/api/interpreter',
-        'https://overpass.kumi.systems/api/interpreter',
-        'https://overpass.openstreetmap.ru/api/interpreter'
-      ];
+      // FIX 3: CORS proxy - POST hata diya
+      const overpassUrl = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`;
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(overpassUrl)}`;
 
-      let data = null;
-      for (const ep of endpoints) {
-        try {
-          const res = await fetch(ep, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'data=' + encodeURIComponent(q),
-          });
-          if (res.ok) {
-            const text = await res.text();
-            try { data = JSON.parse(text); break; } catch {}
-          }
-        } catch (e) { console.log(ep + " fail"); }
-      }
-
-      if (!data) throw new Error("Overpass down");
+      const res = await fetch(proxyUrl);
+      const data = await res.json();
 
       const mapped = (data.elements || []).map(el => ({
-        name: el.tags?.name || 'Unnamed place',
-        vicinity: el.tags?.tourism || el.tags?.amenity || '',
+        name: el.tags?.name || el.tags?.['name:en'] || 'Unnamed place',
+        vicinity: el.tags?.tourism || el.tags?.amenity || el.tags?.historic || '',
         place_id: el.id.toString(),
         geometry: { location: { lat: el.lat, lng: el.lon } }
-      }));
+      })).filter(r => r.name!== 'Unnamed place'); // unnamed hata do
       setResults(mapped);
     } catch (e) {
       console.error(e);
@@ -93,9 +76,7 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
     }
   };
 
-  useEffect(() => {
-    if (isOpen && activeLatLon) fetchSuggestions(mode);
-  }, [isOpen, activeLatLon]);
+  useEffect(() => { if (isOpen && activeLatLon) fetchSuggestions(mode); }, [isOpen, activeLatLon]);
 
   if (!isOpen) return null;
 
@@ -120,14 +101,11 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
           {loading && <div className="flex justify-center py-10"><Loader2 className="animate-spin text-teal-600" /></div>}
           {!loading && results.map(r => (
             <div key={r.place_id} className="border p-3 rounded-xl flex justify-between items-center">
-              <div>
-                <div className="font-bold text-sm">{r.name}</div>
-                <div className="text-xs text-gray-500">{r.vicinity}</div>
-              </div>
+              <div><div className="font-bold text-sm">{r.name}</div><div className="text-xs text-gray-500">{r.vicinity}</div></div>
               <button onClick={() => onAddToTrip && onAddToTrip(r)} className="bg-teal-700 text-white px-3 py-1.5 rounded-full text-xs">Add</button>
             </div>
           ))}
-          {!loading && results.length === 0 && <div className="text-center text-sm text-gray-400 py-10">No places found nearby</div>}
+          {!loading && results.length===0 && <div className="text-center text-sm text-gray-400 py-10">No places found nearby</div>}
         </div>
       </div>
     </div>
