@@ -167,3 +167,4 @@ export function generateJoinCode(destination = '') {
   const num = Math.floor(100 + Math.random() * 900);
   return `${prefix}${num}`;
 }
+
