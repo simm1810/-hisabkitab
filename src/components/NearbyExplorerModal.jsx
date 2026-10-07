@@ -38,8 +38,7 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
   }, [isOpen, latLon, destination]);
 
   const activeLatLon = latLonState || latLon;
-
-  async function fetchSuggestions(newMode) {
+async function fetchSuggestions(newMode) {
     const m = newMode || mode;
     setMode(m);
     if (!activeLatLon) return;
@@ -47,31 +46,37 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
     setResults([]);
     try {
       const selectedMode = MODES.find(x => x.value === m) || MODES[0];
-      const lat = activeLatLon.lat;
-      const lon = activeLatLon.lon || activeLatLon.lng;
-      const query = `[out:json][timeout:25];nwr(around:50000,${lat},${lon})[${selectedMode.query}];out center 20;`;
+      let lat = activeLatLon.lat;
+      let lon = activeLatLon.lon || activeLatLon.lng;
+
+      if (destination?.toLowerCase().includes('kashmir')) {
+        lat = 34.0837; lon = 74.7973;
+      }
+      if (destination?.toLowerCase().includes('goa')) {
+        lat = 15.2993; lon = 74.1240;
+      }
+
+      let query = "";
+      if (m === 'tourist_attraction') {
+        query = `[out:json][timeout:25];(nwr(around:50000,${lat},${lon})[tourism];nwr(around:50000,${lat},${lon})[historic];nwr(around:50000,${lat},${lon})[amenity~"place_of_worship"];);out center 20;`;
+      } else {
+        query = `[out:json][timeout:25];nwr(around:50000,${lat},${lon})[${selectedMode.query}];out center 20;`;
+      }
+      
       console.log("Fetching:", query);
       const url = `/api/overpass?data=${encodeURIComponent(query)}`;
       const res = await fetch(url);
-      const text = await res.text();
-      let data;
-      try { data = JSON.parse(text); } catch { data = { elements: [] }; }
+      const data = await res.json();
       console.log("Overpass result:", data);
 
       let formatted = (data.elements || []).map(el => ({
         place_id: el.id,
         lat: el.lat || el.center?.lat || lat,
         lon: el.lon || el.center?.lon || lon,
-        name: el.tags?.name || el.tags?.tourism || el.tags?.amenity || el.tags?.historic || "Nearby place",
+        name: el.tags?.name || "Nearby place",
         vicinity: el.tags?.tourism || el.tags?.amenity || el.tags?.historic || "nearby",
         tags: el.tags
       }));
-
-      if (formatted.length === 0 && destination?.toLowerCase().includes('goa')) {
-        if (m === 'fuel') formatted = [{ place_id: 1, lat, lon, name: "Indian Oil Petrol Pump - Ponda", vicinity: "fuel", tags: {} }];
-        if (m === 'restaurant') formatted = [{ place_id: 2, lat, lon, name: "Goan Spice Restaurant", vicinity: "restaurant", tags: {} }];
-        if (m === 'tourist_attraction') formatted = [{ place_id: 3, lat, lon, name: "Dudhsagar Falls Viewpoint", vicinity: "attraction", tags: {} }];
-      }
 
       setResults(formatted);
     } catch (err) {
