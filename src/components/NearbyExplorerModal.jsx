@@ -25,11 +25,14 @@ export default function NearbyExplorerModal({ destination = 'India', onClose }) 
       // 1. destination -> lat/lon
       let latLon = coords;
       if (!latLon) {
-        const geo = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(destination)}&format=json&limit=1`
-        ).then(r => r.json());
-        if (!geo[0]) throw new Error(destination + ' not found');
-        latLon = { lat: geo[0].lat, lon: geo[0].lon };
+        const res = await fetch('https://overpass.kumi.systems/api/interpreter', {
+  method: 'POST',
+  body: 'data=' + encodeURIComponent(q),
+  headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+});
+const data = await res.json();
+        if (!data.elements[0]) throw new Error(destination + ' not found');
+        latLon = { lat: data.elements[0].lat, lon: data.elements[0].lon };
         setCoords(latLon);
       }
 
