@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { X, Compass, Utensils, Landmark, Fuel, Building2, MapPin, Loader2 } from 'lucide-react';
 
 const MODES = [
-  { value: 'tourist_attraction', label: 'Attractions', icon: Compass, tags: ['tourism=attraction','tourism=viewpoint','tourism=museum'] },
-  { value: 'restaurant', label: 'Food', icon: Utensils, tags: ['amenity=restaurant','amenity=cafe','amenity=fast_food','amenity=bar'] },
-  { value: 'historic', label: 'Historic', icon: Landmark, tags: ['historic=fort','historic=memorial','historic=monument','historic=ruins'] },
-  { value: 'fuel', label: 'Fuel', icon: Fuel, tags: ['amenity=fuel'] },
-  { value: 'hotel', label: 'Stay', icon: Building2, tags: ['tourism=hotel','tourism=guest_house','tourism=resort','tourism=hostel'] },
+  { value: 'tourist_attraction', label: 'Attractions', icon: Compass, tags: ['tourism=attraction','tourism=viewpoint','tourism=museum','tourism=temple','historic','natural=beach'] },
+  { value: 'restaurant', label: 'Food', icon: Utensils, tags: ['amenity=restaurant','amenity=cafe','amenity=fast_food','amenity=bar','amenity=pub','shop=bakery'] },
+  { value: 'historic', label: 'Historic', icon: Landmark, tags: ['historic=fort','historic=memorial','historic=monument','historic=ruins','historic=church'] },
+  { value: 'fuel', label: 'Fuel', icon: Fuel, tags: ['amenity=fuel','amenity=charging_station'] },
+  { value: 'hotel', label: 'Stay', icon: Building2, tags: ['tourism=hotel','tourism=guest_house','tourism=resort','tourism=hostel','tourism=apartment'] },
 ];
 
 export default function NearbyExplorerModal({ isOpen, onClose, latLon, destination, onAddToTrip }) {
@@ -53,7 +53,8 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
       const lon = activeLatLon.lon || activeLatLon.lng;
 
       // Regex hataya, simple OR queries banayi
-      const clauses = selectedMode.tags.map(t => `nwr(around:3000,${lat},${lon})[${t}];`).join('');
+      // Line ~42 - 3000 ko 15000 kar de
+      const clauses = selectedMode.tags.map(t => `nwr(around:15000,${lat},${lon})[${t}];`).join('');
       const query = `[out:json][timeout:25];(${clauses});out center 20;`;
 
       console.log("Fetching:", query);
@@ -73,7 +74,7 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
         name: el.tags?.name || "Unnamed place",
         vicinity: el.tags?.tourism || el.tags?.amenity || el.tags?.historic || "nearby",
         tags: el.tags
-      })).filter(r => r.name!== "Unnamed place" && r.tags?.name);
+      }))..filter(r => true)
 
       setResults(formatted);
     } catch (err) {
