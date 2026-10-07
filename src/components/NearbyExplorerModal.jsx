@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { X, Compass, Utensils, Landmark, Fuel, Building2, MapPin, Loader2 } from 'lucide-react';
 
 const MODES = [
-  { value: 'tourist_attraction', label: 'Attractions', icon: Compass, query: 'tourism~"attraction|viewpoint|museum|fort|temple|shrine|fortress"' },
-  { value: 'restaurant', label: 'Food', icon: Utensils, query: 'amenity~"restaurant|cafe|food_court|fast_food|bar|pub"' },
-  { value: 'historic', label: 'Historic', icon: Landmark, query: 'historic' },
-  { value: 'fuel', label: 'Fuel', icon: Fuel, query: 'amenity="fuel"' },
-  { value: 'hotel', label: 'Stay', icon: Building2, query: 'tourism~"hotel|guest_house|resort|hostel"' },
+  { value: 'tourist_attraction', label: 'Attractions', icon: Compass, tags: ['tourism=attraction','tourism=viewpoint','tourism=museum'] },
+  { value: 'restaurant', label: 'Food', icon: Utensils, tags: ['amenity=restaurant','amenity=cafe','amenity=fast_food','amenity=bar'] },
+  { value: 'historic', label: 'Historic', icon: Landmark, tags: ['historic=fort','historic=memorial','historic=monument','historic=ruins'] },
+  { value: 'fuel', label: 'Fuel', icon: Fuel, tags: ['amenity=fuel'] },
+  { value: 'hotel', label: 'Stay', icon: Building2, tags: ['tourism=hotel','tourism=guest_house','tourism=resort','tourism=hostel'] },
 ];
 
 export default function NearbyExplorerModal({ isOpen, onClose, latLon, destination, onAddToTrip }) {
@@ -31,7 +31,7 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
       }
       navigator.geolocation.getCurrentPosition(
         (pos) => setLatLonState({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-        () => setLatLonState({ lat: 15.4909, lon: 73.8278 }) // Panjim fallback
+        () => setLatLonState({ lat: 15.4909, lon: 73.8278 })
       );
     }
     resolveLocation();
@@ -43,36 +43,38 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
     const m = newMode || mode;
     setMode(m);
     if (!activeLatLon) return;
-    
+
     setLoading(true);
     setResults([]);
-    
+
     try {
       const selectedMode = MODES.find(x => x.value === m) || MODES[0];
       const lat = activeLatLon.lat;
       const lon = activeLatLon.lon || activeLatLon.lng;
-      
-      // node + way + relation sab search karo - zyada results
-      const query = `[out:json][timeout:25];(nwr(around:3000,${lat},${lon})[${selectedMode.query}];);out center 20;`;
-      
+
+      // Regex hataya, simple OR queries banayi
+      const clauses = selectedMode.tags.map(t => `nwr(around:3000,${lat},${lon})[${t}];`).join('');
+      const query = `[out:json][timeout:25];(${clauses});out center 20;`;
+
       console.log("Fetching:", query);
-      
-      // ✅ FIX: Vercel proxy hata ke direct Overpass call
+
       const url = `/api/overpass?data=${encodeURIComponent(query)}`;
       const res = await fetch(url);
-      const data = await res.json();
-      
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { elements: [] }; }
+
       console.log("Overpass result:", data);
-      
+
       const formatted = (data.elements || []).map(el => ({
         place_id: el.id,
         lat: el.lat || el.center?.lat || lat,
         lon: el.lon || el.center?.lon || lon,
-        name: el.tags?.name || el.tags?.tourism || el.tags?.amenity || "Unnamed place",
-        vicinity: el.tags?.["addr:full"] || el.tags?.amenity || el.tags?.tourism || el.tags?.historic || "nearby",
+        name: el.tags?.name || "Unnamed place",
+        vicinity: el.tags?.tourism || el.tags?.amenity || el.tags?.historic || "nearby",
         tags: el.tags
-      })).filter(r => r.name !== "Unnamed place");
-      
+      })).filter(r => r.name!== "Unnamed place" && r.tags?.name);
+
       setResults(formatted);
     } catch (err) {
       console.error("Overpass error:", err);
@@ -81,8 +83,8 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
     setLoading(false);
   }
 
-  useEffect(() => { 
-    if (isOpen && activeLatLon) fetchSuggestions(mode); 
+  useEffect(() => {
+    if (isOpen && activeLatLon) fetchSuggestions(mode);
   }, [isOpen, activeLatLon]);
 
   if (!isOpen) return null;
