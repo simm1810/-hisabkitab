@@ -49,7 +49,7 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
       const selectedMode = MODES.find(x => x.value === m) || MODES[0];
       const lat = activeLatLon.lat;
       const lon = activeLatLon.lon || activeLatLon.lng;
-      const clauses = selectedMode.tags.map(t => `nwr(around:15000,${lat},${lon})[${t}];`).join('');
+      const clauses = selectedMode.tags.map(t => `nwr(around:50000,${lat},${lon})[${t}];`).join('');
       const query = `[out:json][timeout:25];(${clauses});out center 20;`;
       console.log("Fetching:", query);
       const url = `/api/overpass?data=${encodeURIComponent(query)}`;
