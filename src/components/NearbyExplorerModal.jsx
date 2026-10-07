@@ -39,36 +39,34 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
 
   const activeLatLon = latLon || latLonState;
 
-  const fetchSuggestions = async (selectedMode) => {
-    if (!activeLatLon) return;
-    setMode(selectedMode);
-    setLoading(true);
-    setResults([]);
-    try {
-      const selected = MODES.find(x => x.value === selectedMode);
-      const lat = activeLatLon.lat;
-      const lon = activeLatLon.lng || activeLatLon.lon;
-      const q = `[out:json][timeout:25];(node[${selected.query}](around:10000,${lat},${lon}););out 20;`;
+  async function fetchNearby(lat, lon) {
+  // 1km radius me sab kuch lao
+  const query = `
+    [out:json][timeout:25];
+    (
+      node(around:1000,${lat},${lon})["amenity"];
+      node(around:1000,${lat},${lon})["shop"];
+      node(around:1000,${lat},${lon})["tourism"];
+      node(around:1000,${lat},${lon})["leisure"];
+    );
+    out 20;
+  `;
+  
+  console.log("Query:", query);
 
-      // DIRECT CALL - no proxy
-      const res = await fetch(`/api/overpass?data=${encodeURIComponent(q)}`);
-      const data = await res.json();
-
-      const mapped = (data.elements || []).map(el => ({
-        name: el.tags?.name || el.tags?.['name:en'] || 'Unnamed place',
-        vicinity: el.tags?.tourism || el.tags?.amenity || el.tags?.historic || '',
-        place_id: el.id.toString(),
-        geometry: { location: { lat: el.lat, lng: el.lon } }
-      })).filter(r => r.name!== 'Unnamed place');
-      setResults(mapped);
-    } catch (e) {
-      console.error(e);
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
+  
+  const res = await fetch(url);
+  const data = await res.json();
+  
+  console.log("Overpass result:", data);
+  
+  if (!data.elements || data.elements.length === 0) {
+    throw new Error("No results");
+  }
+  
+  return data.elements;
+}
   useEffect(() => { if (isOpen && activeLatLon) fetchSuggestions(mode); }, [isOpen, activeLatLon]);
 
   if (!isOpen) return null;
