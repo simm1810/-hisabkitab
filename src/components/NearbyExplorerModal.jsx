@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { X, Compass, Utensils, Landmark, Fuel, Building2, MapPin, Loader2 } from 'lucide-react';
 
 const MODES = [
-  { value: 'tourist_attraction', label: 'Attractions', icon: Compass, query: 'tourism~"attraction|viewpoint|museum|fort|temple|shrine"' },
-  { value: 'restaurant', label: 'Food', icon: Utensils, query: 'amenity~"restaurant|cafe|food_court|fast_food"' },
+  { value: 'tourist_attraction', label: 'Attractions', icon: Compass, query: 'tourism~"attraction|viewpoint|museum|fort|temple|shrine|fortress"' },
+  { value: 'restaurant', label: 'Food', icon: Utensils, query: 'amenity~"restaurant|cafe|food_court|fast_food|bar|pub"' },
   { value: 'historic', label: 'Historic', icon: Landmark, query: 'historic~"."' },
   { value: 'fuel', label: 'Fuel', icon: Fuel, query: 'amenity~"fuel"' },
-  { value: 'hotel', label: 'Stay', icon: Building2, query: 'tourism~"hotel|guest_house|resort|hostel"' },
+  { value: 'hotel', label: 'Stay', icon: Building2, query: 'tourism~"hotel|guest_house|resort|hostel|apartment"' },
 ];
 
 export default function NearbyExplorerModal({ isOpen, onClose, latLon, destination, onAddToTrip }) {
@@ -24,14 +24,14 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
           const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(destination)}`);
           const data = await res.json();
           if (data[0]) {
-            setLatLonState({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
+            setLatLonState({ lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) });
             return;
           }
         } catch {}
       }
       navigator.geolocation.getCurrentPosition(
-        (pos) => setLatLonState({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () => setLatLonState({ lat: 15.4909, lng: 73.8278 })
+        (pos) => setLatLonState({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+        () => setLatLonState({ lat: 15.4909, lon: 73.8278 })
       );
     }
     resolveLocation();
@@ -39,35 +39,49 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
 
   const activeLatLon = latLon || latLonState;
 
-  async function fetchNearby(lat, lon) {
-  // 1km radius me sab kuch lao
-  const query = `
-    [out:json][timeout:25];
-    (
-      node(around:1000,${lat},${lon})["amenity"];
-      node(around:1000,${lat},${lon})["shop"];
-      node(around:1000,${lat},${lon})["tourism"];
-      node(around:1000,${lat},${lon})["leisure"];
-    );
-    out 20;
-  `;
-  
-  console.log("Query:", query);
-
-  const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
-  
-  const res = await fetch(url);
-  const data = await res.json();
-  
-  console.log("Overpass result:", data);
-  
-  if (!data.elements || data.elements.length === 0) {
-    throw new Error("No results");
+  // ✅ Yahi function tha jo missing tha
+  async function fetchSuggestions(newMode) {
+    const m = newMode || mode;
+    setMode(m);
+    
+    if (!activeLatLon) return;
+    
+    setLoading(true);
+    setResults([]);
+    
+    try {
+      const selectedMode = MODES.find(x => x.value === m) || MODES[0];
+      const lat = activeLatLon.lat;
+      const lon = activeLatLon.lon || activeLatLon.lng;
+      
+      const query = `[out:json][timeout:25];(node(around:1500,${lat},${lon})[${selectedMode.query}];);out 20;`;
+      
+      console.log("Fetching:", query);
+      
+      const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      
+      console.log("Overpass result:", data);
+      
+      const formatted = (data.elements || []).map(el => ({
+        place_id: el.id,
+        name: el.tags?.name || "Unnamed",
+        vicinity: el.tags?.amenity || el.tags?.tourism || el.tags?.historic || "place",
+        tags: el.tags
+      }));
+      
+      setResults(formatted);
+    } catch (err) {
+      console.error(err);
+      setResults([]);
+    }
+    setLoading(false);
   }
-  
-  return data.elements;
-}
-  useEffect(() => { if (isOpen && activeLatLon) fetchSuggestions(mode); }, [isOpen, activeLatLon]);
+
+  useEffect(() => { 
+    if (isOpen && activeLatLon) fetchSuggestions(mode); 
+  }, [isOpen, activeLatLon]);
 
   if (!isOpen) return null;
 
@@ -96,7 +110,7 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
               <button onClick={() => onAddToTrip && onAddToTrip(r)} className="bg-teal-700 text-white px-3 py-1.5 rounded-full text-xs">Add</button>
             </div>
           ))}
-          {!loading && results.length===0 && <div className="text-center text-sm text-gray-400 py-10">No places found nearby</div>}
+          {!loading && results.length===0 && <div className="text-center text-sm text-gray-400 py-10">No places found - try other tab</div>}
         </div>
       </div>
     </div>
