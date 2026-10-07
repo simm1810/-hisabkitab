@@ -15,7 +15,6 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
   const [loading, setLoading] = useState(false);
   const [latLonState, setLatLonState] = useState(latLon || null);
 
-  // Universal location logic - kisi bhi city ke liye
   useEffect(() => {
     async function resolveLocation() {
       if (!isOpen) return;
@@ -23,12 +22,9 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
         setLatLonState(latLon);
         return;
       }
-
-      // 1. Browser location try karo
       navigator.geolocation.getCurrentPosition(
         (pos) => setLatLonState({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
         async () => {
-          // 2. Deny hua toh destination ko geocode karo
           if (destination) {
             try {
               const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(destination)}`);
@@ -37,11 +33,8 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
                 setLatLonState({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
                 return;
               }
-            } catch (e) {
-              console.error(e);
-            }
+            } catch {}
           }
-          // 3. Fallback - Panjim
           setLatLonState({ lat: 15.4909, lng: 73.8278 });
         }
       );
@@ -58,21 +51,43 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
     setResults([]);
     try {
       const selected = MODES.find(x => x.value === selectedMode);
-      const q = `[out:json][timeout:25];(node[${selected.query}](around:5000,${activeLatLon.lat},${activeLatLon.lon}););out 20;`;
-      const res = await fetch('https://overpass.kumi.systems/api/interpreter', {
-        method: 'POST',
-        body: 'data=' + encodeURIComponent(q),
-      });
-      const data = await res.json();
+      const lat = activeLatLon.lat;
+      const lon = activeLatLon.lng || activeLatLon.lon;
+      const q = `[out:json][timeout:25];(node[${selected.query}](around:5000,${lat},${lon}););out 20;`;
+
+      const endpoints = [
+        'https://overpass-api.de/api/interpreter',
+        'https://overpass.kumi.systems/api/interpreter',
+        'https://overpass.openstreetmap.ru/api/interpreter'
+      ];
+
+      let data = null;
+      for (const ep of endpoints) {
+        try {
+          const res = await fetch(ep, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'data=' + encodeURIComponent(q),
+          });
+          if (res.ok) {
+            const text = await res.text();
+            try { data = JSON.parse(text); break; } catch {}
+          }
+        } catch (e) { console.log(ep + " fail"); }
+      }
+
+      if (!data) throw new Error("Overpass down");
+
       const mapped = (data.elements || []).map(el => ({
         name: el.tags?.name || 'Unnamed place',
-        vicinity: el.tags?.tourism || el.tags?.amenity || el.tags?.historic || '',
+        vicinity: el.tags?.tourism || el.tags?.amenity || '',
         place_id: el.id.toString(),
         geometry: { location: { lat: el.lat, lng: el.lon } }
       }));
       setResults(mapped);
     } catch (e) {
       console.error(e);
+      setResults([]);
     } finally {
       setLoading(false);
     }
@@ -91,24 +106,18 @@ export default function NearbyExplorerModal({ isOpen, onClose, latLon, destinati
           <h2 className="font-bold flex gap-2"><MapPin className="w-5 h-5" /> Nearby in {destination || 'your area'}</h2>
           <button onClick={onClose}><X /></button>
         </div>
-
         <div className="p-4 flex gap-2 overflow-x-auto">
           {MODES.map((item) => {
             const ItemIcon = item.icon;
             return (
-              <button
-                key={item.value}
-                onClick={() => fetchSuggestions(item.value)}
-                className={`px-3.5 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 whitespace-nowrap ${mode===item.value?'bg-teal-800 text-white':'bg-teal-50 text-teal-700'}`}
-              >
+              <button key={item.value} onClick={() => fetchSuggestions(item.value)} className={`px-3.5 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 whitespace-nowrap ${mode===item.value?'bg-teal-800 text-white':'bg-teal-50 text-teal-700'}`}>
                 <ItemIcon className="w-3.5 h-3.5" />{item.label}
               </button>
             )
           })}
         </div>
-
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {loading && <div className="flex justify-center py-10"><Loader2 className="animate-spin" /></div>}
+          {loading && <div className="flex justify-center py-10"><Loader2 className="animate-spin text-teal-600" /></div>}
           {!loading && results.map(r => (
             <div key={r.place_id} className="border p-3 rounded-xl flex justify-between items-center">
               <div>
